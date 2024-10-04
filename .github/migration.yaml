@@ -1,0 +1,53 @@
+name: Database Migration
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        app:
+          - app1
+          - app2
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+
+      - name: Set up Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '11'
+
+      - name: Download Liquibase
+        run: |
+          wget https://download.liquibase.org/liquibase-4.3.5.tar.gz
+          tar -xzf liquibase-4.3.5.tar.gz
+
+      - name: Set up Database Driver
+        run: |
+          mkdir -p ./${{ matrix.app }}/lib
+          if [ "${{ matrix.app }}" == "app1" ]; then
+            wget -P ./${{ matrix.app }}/lib https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.23/mysql-connector-java-8.0.23.jar
+          else
+            wget -P ./${{ matrix.app }}/lib https://jdbc.postgresql.org/download/postgresql-42.2.19.jar
+          fi
+
+      - name: Run Migration
+        env:
+          DB_URL: ${{ secrets['DB_URL_' + matrix.app] }}
+          DB_USERNAME: ${{ secrets['DB_USERNAME_' + matrix.app] }}
+          DB_PASSWORD: ${{ secrets['DB_PASSWORD_' + matrix.app] }}
+        run: |
+          cd ${{ matrix.app }}
+          ../liquibase/liquibase \
+            --defaultsFile=liquibase.properties \
+            --url=${{ env.DB_URL }} \
+            --username=${{ env.DB_USERNAME }} \
+            --password=${{ env.DB_PASSWORD }} \
+            update --labels=apply
